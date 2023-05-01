@@ -18,6 +18,7 @@ use usb_device::{
 };
 use usbd_human_interface_device::{
     device::{
+        consumer::{ConsumerControl, ConsumerControlConfig},
         joystick::{Joystick, JoystickConfig},
         keyboard::{NKROBootKeyboard, NKROBootKeyboardConfig},
         mouse::{WheelMouse, WheelMouseConfig},
@@ -139,9 +140,10 @@ fn main() -> ! {
     let mut keypad_class = UsbHidClassBuilder::new()
         .add_device(NKROBootKeyboardConfig::default())
         .add_device(JoystickConfig::default())
-        .add_device(WheelMouseConfig::default()) // TODO: add Consumer keys
+        .add_device(WheelMouseConfig::default())
+        .add_device(ConsumerControlConfig::default())
         .build(&usb_alloc);
-    let mut keypad_dev = UsbDeviceBuilder::new(&usb_alloc, UsbVidPid(0x1209, 0x9037)) // TODO: fork pid.codes accordingly
+    let mut keypad_dev = UsbDeviceBuilder::new(&usb_alloc, UsbVidPid(0x1209, 0x9037)) // TODO: fork pid.codes accordingly; finish stuff first
         .manufacturer("kitknacks")
         .product("padtarust keypad")
         .serial_number("00000")
@@ -190,6 +192,17 @@ fn main() -> ! {
                     UsbHidError::WouldBlock => {}
                     _ => {
                         panic!("Failed to write joystick report: {:?}", e);
+                    }
+                }
+            }
+        }
+        {
+            let consumer = keypad_class.device::<ConsumerControl<'_, _>, _>();
+            if let Err(e) = consumer.write_report(&reports.3) {
+                match e {
+                    UsbError::WouldBlock => {}
+                    _ => {
+                        panic!("Failed to write consumer report: {:?}", e);
                     }
                 }
             }

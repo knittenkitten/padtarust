@@ -1,8 +1,10 @@
 use crate::ws2812::WS2812;
 use teensy4_bsp::hal;
 use teensy4_bsp::pins::t41::Pins;
+use usbd_human_interface_device::device::consumer::MultipleConsumerReport;
 use usbd_human_interface_device::device::joystick::JoystickReport;
 use usbd_human_interface_device::device::mouse::WheelMouseReport;
+use usbd_human_interface_device::page::Consumer;
 use usbd_human_interface_device::page::Keyboard;
 
 const DEFAULT_JOY_X_CENTER: u16 = 500;
@@ -190,11 +192,379 @@ enum KeyboardAction {
     JoystickButton,
 }
 
+macro_rules! declare_consumer_enum{
+    ($($item:ident),+) => {
+        #[derive(Copy, Clone)]
+        enum ConsumerKey{
+            None,
+            $($item),+
+        }
+
+        impl ConsumerKey{
+            fn get_usb_code(&self) -> Consumer {
+                match self{
+                    $(
+                        ConsumerKey::$item => { Consumer::$item }
+                    )*
+                    ConsumerKey::None => { Consumer::Unassigned }
+                }
+            }
+        }
+    }
+}
+
+// we have lots of RAM... why not...
+declare_consumer_enum!(
+    Plus10,
+    Plus100,
+    AmPm,
+    Power,
+    Reset,
+    Sleep,
+    SleepAfter,
+    SleepMode,
+    Illumination,
+    Menu,
+    MenuPick,
+    MenuUp,
+    MenuDown,
+    MenuLeft,
+    MenuRight,
+    MenuEscape,
+    MenuValueIncrease,
+    MenuValueDecrease,
+    DataOnScreen,
+    ClosedCaption,
+    ClosedCaptionSelect,
+    VcrTv,
+    BroadcastMode,
+    Snapshot,
+    Still,
+    Selection,
+    AssignSelection,
+    ModeStep,
+    RecallLast,
+    EnterChannel,
+    OrderMovie,
+    Channel,
+    MediaSelection,
+    MediaSelectComputer,
+    MediaSelectTV,
+    MediaSelectWWW,
+    MediaSelectDVD,
+    MediaSelectTelephone,
+    MediaSelectProgramGuide,
+    MediaSelectVideoPhone,
+    MediaSelectGames,
+    MediaSelectMessages,
+    MediaSelectCD,
+    MediaSelectVCR,
+    MediaSelectTuner,
+    Quit,
+    Help,
+    MediaSelectTape,
+    MediaSelectCable,
+    MediaSelectSatellite,
+    MediaSelectSecurity,
+    MediaSelectHome,
+    MediaSelectCall,
+    ChannelIncrement,
+    ChannelDecrement,
+    MediaSelectSAP,
+    VCRPlus,
+    Once,
+    Daily,
+    Weekly,
+    Monthly,
+    Play,
+    Pause,
+    Record,
+    FastForward,
+    Rewind,
+    ScanNextTrack,
+    ScanPreviousTrack,
+    Stop,
+    Eject,
+    RandomPlay,
+    EnterDisc,
+    Repeat,
+    Tracking,
+    TrackNormal,
+    SlowTracking,
+    FrameForward,
+    FrameBack,
+    Mark,
+    ClearMark,
+    RepeatFromMark,
+    ReturnToMark,
+    SearchMarkForward,
+    SearchMarkBackwards,
+    CounterReset,
+    ShowCounter,
+    TrackingIncrement,
+    TrackingDecrement,
+    StopEject,
+    PlayPause,
+    PlaySkip,
+    Volume,
+    Balance,
+    Mute,
+    Bass,
+    Treble,
+    BassBoost,
+    SurroundMode,
+    Loudness,
+    MPX,
+    VolumeIncrement,
+    VolumeDecrement,
+    SpeedSelect,
+    StandardPlay,
+    LongPlay,
+    ExtendedPlay,
+    Slow,
+    FanEnable,
+    FanSpeed,
+    LightEnable,
+    LightIlluminationLevel,
+    ClimateControlEnable,
+    RoomTemperature,
+    SecurityEnable,
+    FireAlarm,
+    PoliceAlarm,
+    Motion,
+    DuressAlarm,
+    HoldupAlarm,
+    MedicalAlarm,
+    BalanceRight,
+    BalanceLeft,
+    BassIncrement,
+    BassDecrement,
+    TrebleIncrement,
+    TrebleDecrement,
+    SubChannel,
+    SubChannelIncrement,
+    SubChannelDecrement,
+    AlternateAudioIncrement,
+    AlternateAudioDecrement,
+    ALLaunchButtonConfigurationTool,
+    ALProgrammableButtonConfiguration,
+    ALConsumerControlConfiguration,
+    ALWordProcessor,
+    ALTextEditor,
+    ALSpreadsheet,
+    ALGraphicsEditor,
+    ALPresentationApp,
+    ALDatabaseApp,
+    ALEmailReader,
+    ALNewsreader,
+    ALVoicemail,
+    ALContactsAddressBook,
+    ALCalendarSchedule,
+    ALTaskProjectManager,
+    ALLogJournalTimecard,
+    ALCheckbookFinance,
+    ALCalculator,
+    ALAvCapturePlayback,
+    ALLocalMachineBrowser,
+    ALLanWanBrowser,
+    ALInternetBrowser,
+    ALRemoteNetworkingISPConnect,
+    ALNetworkConference,
+    ALNetworkChat,
+    ALTelephonyDialer,
+    ALLogon,
+    ALLogoff,
+    ALLogonLogoff,
+    ALTerminalLockScreensaver,
+    ALControlPanel,
+    ALCommandLineProcessorRun,
+    ALProcessTaskManager,
+    ALSelectTaskApplication,
+    ALNextTaskApplication,
+    ALPreviousTaskApplication,
+    ALPreemptiveHaltTaskApplication,
+    ALIntegratedHelpCenter,
+    ALDocuments,
+    ALThesaurus,
+    ALDictionary,
+    ALDesktop,
+    ALSpellCheck,
+    ALGrammarCheck,
+    ALWirelessStatus,
+    ALKeyboardLayout,
+    ALVirusProtection,
+    ALEncryption,
+    ALScreenSaver,
+    ALAlarms,
+    ALClock,
+    ALFileBrowser,
+    ALPowerStatus,
+    ALImageBrowser,
+    ALAudioBrowser,
+    ALMovieBrowser,
+    ALDigitalRightsManager,
+    ALDigitalWallet,
+    ALInstantMessaging,
+    ALOemFeaturesTipsTutorialBrowser,
+    ALOemHelp,
+    ALOnlineCommunity,
+    ALEntertainmentContentBrowser,
+    ALOnlineShoppingBrowser,
+    ALSmartCardInformationHelp,
+    ALMarketMonitorFinanceBrowser,
+    ALCustomizedCorporateNewsBrowser,
+    ALOnlineActivityBrowser,
+    ALResearchSearchBrowser,
+    ALAudioPlayer,
+    ACNew,
+    ACOpen,
+    ACClose,
+    ACExit,
+    ACMaximize,
+    ACMinimize,
+    ACSave,
+    ACPrint,
+    ACProperties,
+    ACUndo,
+    ACCopy,
+    ACCut,
+    ACPaste,
+    ACSelectAll,
+    ACFind,
+    ACFindAndReplace,
+    ACSearch,
+    ACGoTo,
+    ACHome,
+    ACBack,
+    ACForward,
+    ACStop,
+    ACRefresh,
+    ACPreviousLink,
+    ACNextLink,
+    ACBookmarks,
+    ACHistory,
+    ACSubscriptions,
+    ACZoomIn,
+    ACZoomOut,
+    ACZoom,
+    ACFullScreenView,
+    ACNormalView,
+    ACViewToggle,
+    ACScrollUp,
+    ACScrollDown,
+    ACScroll,
+    ACPanLeft,
+    ACPanRight,
+    ACPan,
+    ACNewWindow,
+    ACTileHorizontally,
+    ACTileVertically,
+    ACFormat,
+    ACEdit,
+    ACBold,
+    ACItalics,
+    ACUnderline,
+    ACStrikethrough,
+    ACSubscript,
+    ACSuperscript,
+    ACAllCaps,
+    ACRotate,
+    ACResize,
+    ACFlipHorizontal,
+    ACFlipVertical,
+    ACMirrorHorizontal,
+    ACMirrorVertical,
+    ACFontSelect,
+    ACFontColor,
+    ACFontSize,
+    ACJustifyLeft,
+    ACJustifyCenterH,
+    ACJustifyRight,
+    ACJustifyBlockH,
+    ACJustifyTop,
+    ACJustifyCenterV,
+    ACJustifyBottom,
+    ACJustifyBlockV,
+    ACIndentDecrease,
+    ACIndentIncrease,
+    ACNumberedList,
+    ACRestartNumbering,
+    ACBulletedList,
+    ACPromote,
+    ACDemote,
+    ACYes,
+    ACNo,
+    ACCancel,
+    ACCatalog,
+    ACBuyCheckout,
+    ACAddToCart,
+    ACExpand,
+    ACExpandAll,
+    ACCollapse,
+    ACCollapseAll,
+    ACPrintPreview,
+    ACPasteSpecial,
+    ACInsertMode,
+    ACDelete,
+    ACLock,
+    ACUnlock,
+    ACProtect,
+    ACUnprotect,
+    ACAttachComment,
+    ACDeleteComment,
+    ACViewComment,
+    ACSelectWord,
+    ACSelectSentence,
+    ACSelectParagraph,
+    ACSelectColumn,
+    ACSelectRow,
+    ACSelectTable,
+    ACSelectObject,
+    ACRedoRepeat,
+    ACSort,
+    ACSortAscending,
+    ACSortDescending,
+    ACFilter,
+    ACSetClock,
+    ACViewClock,
+    ACSelectTimeZone,
+    ACEditTimeZones,
+    ACSetAlarm,
+    ACClearAlarm,
+    ACSnoozeAlarm,
+    ACResetAlarm,
+    ACSynchronize,
+    ACSendReceive,
+    ACSendTo,
+    ACReply,
+    ACReplyAll,
+    ACForwardMsg,
+    ACSend,
+    ACAttachFile,
+    ACUpload,
+    ACDownloadSaveTargetAs,
+    ACSetBorders,
+    ACInsertRow,
+    ACInsertColumn,
+    ACInsertFile,
+    ACInsertPicture,
+    ACInsertObject,
+    ACInsertSymbol,
+    ACSaveAndClose,
+    ACRename,
+    ACMerge,
+    ACSplit,
+    ACDistributeHorizontally,
+    ACDistributeVertically
+);
+
 pub struct Report {
     buttons: [Option<Keyboard>; 26],
     button_count: usize,
     mouse_buttons: [Option<bool>; 3],
     joystick_button: Option<bool>,
+    consumer_codes: [Consumer; 4],
+    consumer_count: usize,
 }
 
 impl Report {
@@ -204,6 +574,8 @@ impl Report {
             button_count: 0,
             mouse_buttons: [None; 3],
             joystick_button: None,
+            consumer_codes: [Consumer::Unassigned; 4],
+            consumer_count: 0,
         }
     }
     fn add_mapping(&mut self, mapping: Mapping) {
@@ -211,6 +583,15 @@ impl Report {
             if self.button_count < 26 {
                 self.buttons[self.button_count] = Some(mapping.button);
                 self.button_count += 1;
+            } else {
+                // TODO: log
+            }
+        }
+        let consumer = mapping.consumer_button.get_usb_code();
+        if consumer != Consumer::Unassigned {
+            if self.consumer_count < 4 {
+                self.consumer_codes[self.consumer_count] = consumer;
+                self.consumer_count += 1;
             } else {
                 // TODO: log
             }
@@ -233,7 +614,7 @@ impl Report {
         &self,
         mouse: &mut WheelMouseReport,
         joystick: &mut JoystickReport,
-    ) -> [Keyboard; 26] {
+    ) -> ([Keyboard; 26], MultipleConsumerReport) {
         let mut k: usize = 0;
         let mut nkro_keys = [Keyboard::NoEventIndicated; 26];
         for (i, button) in self.buttons.into_iter().enumerate() {
@@ -266,7 +647,9 @@ impl Report {
         } else if self.mouse_buttons[2].is_some() {
             mouse.buttons = 4;
         }
-        nkro_keys
+        let mut consumer_report = MultipleConsumerReport::default();
+        consumer_report.codes = self.consumer_codes;
+        (nkro_keys, consumer_report)
     }
 }
 
@@ -274,6 +657,7 @@ impl Report {
 pub struct Mapping {
     action: KeyboardAction,
     button: Keyboard,
+    consumer_button: ConsumerKey,
 }
 
 impl Mapping {
@@ -281,12 +665,14 @@ impl Mapping {
         Mapping {
             action: KeyboardAction::None,
             button: b,
+            consumer_button: ConsumerKey::None,
         }
     }
     fn from_action(a: KeyboardAction) -> Mapping {
         Mapping {
             action: a,
             button: Keyboard::NoEventIndicated,
+            consumer_button: ConsumerKey::None,
         }
     }
     fn affects_reports(&self) -> Option<KeyboardAction> {
@@ -529,7 +915,12 @@ impl Keymap {
         adc1: &mut hal::adc::Adc<1>,
         io: &mut KeymapIOPoints,
         state: &mut KeymapState,
-    ) -> ([Keyboard; 26], WheelMouseReport, JoystickReport) {
+    ) -> (
+        [Keyboard; 26],
+        WheelMouseReport,
+        JoystickReport,
+        MultipleConsumerReport,
+    ) {
         let mut report = Report::new();
 
         // undo momentary changes
@@ -749,7 +1140,7 @@ impl Keymap {
         }
 
         io.leds.show();
-        let keys = report.finalize(&mut mouse_report, &mut joystick_report);
-        (keys, mouse_report, joystick_report)
+        let (keys, consumer_report) = report.finalize(&mut mouse_report, &mut joystick_report);
+        (keys, mouse_report, joystick_report, consumer_report)
     }
 }
