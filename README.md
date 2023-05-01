@@ -5,4 +5,4 @@ A gaming keypad (and custom Rust firmware thereof) that might just happen to fit
 
 Loosely based on [PyPad](https://github.com/Ayehavgunne/pypad).
 
-(PCB, LED support, and plate design in progress)
+(PCB, plate design, and customization in progress)

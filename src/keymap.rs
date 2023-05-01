@@ -1,3 +1,4 @@
+use crate::ws2812::WS2812;
 use teensy4_bsp::hal;
 use teensy4_bsp::pins::t41::Pins;
 use usbd_human_interface_device::device::joystick::JoystickReport;
@@ -123,6 +124,7 @@ pub struct KeymapIOPoints {
     rotary2: hal::gpio::Input<Rotary2Pin>,
     joyx: hal::adc::AnalogInput<JoyXPin, 1>,
     joyy: hal::adc::AnalogInput<JoyYPin, 1>,
+    leds: WS2812,
 }
 
 impl KeymapIOPoints {
@@ -132,6 +134,7 @@ impl KeymapIOPoints {
         gpio3: &mut hal::gpio::Port<3>,
         gpio4: &mut hal::gpio::Port<4>,
         pins: Pins,
+        pit1: hal::pit::Pit<1>,
     ) -> KeymapIOPoints {
         KeymapIOPoints {
             key0: get_Key0_gpio_input!(gpio1, gpio2, gpio3, gpio4, pins),
@@ -161,10 +164,10 @@ impl KeymapIOPoints {
             rotary2: get_Rotary2_gpio_input!(gpio1, gpio2, gpio3, gpio4, pins),
             joyx: get_JoyX_adc_input!(pins),
             joyy: get_JoyY_adc_input!(pins),
+            leds: WS2812::new(gpio1.output(pins.p41), pit1),
         }
     }
 }
-
 
 #[derive(Copy, Clone, PartialEq)]
 enum KeyboardAction {
@@ -191,7 +194,7 @@ pub struct Report {
     buttons: [Option<Keyboard>; 26],
     button_count: usize,
     mouse_buttons: [Option<bool>; 3],
-    joystick_button: Option<bool>
+    joystick_button: Option<bool>,
 }
 
 impl Report {
@@ -200,7 +203,7 @@ impl Report {
             buttons: [None; 26],
             button_count: 0,
             mouse_buttons: [None; 3],
-            joystick_button: None
+            joystick_button: None,
         }
     }
     fn add_mapping(&mut self, mapping: Mapping) {
@@ -212,7 +215,7 @@ impl Report {
                 // TODO: log
             }
         }
-        match mapping.action{
+        match mapping.action {
             KeyboardAction::MouseLeftButton => {
                 self.mouse_buttons[0] = Some(true);
             }
@@ -222,13 +225,15 @@ impl Report {
             KeyboardAction::MouseScrollButton => {
                 self.mouse_buttons[2] = Some(true);
             }
-            KeyboardAction::JoystickButton => {
-                self.joystick_button = Some(true)
-            }
+            KeyboardAction::JoystickButton => self.joystick_button = Some(true),
             _ => {}
         }
     }
-    fn finalize(&self, mouse: &mut WheelMouseReport, joystick: &mut JoystickReport) -> [Keyboard; 26] {
+    fn finalize(
+        &self,
+        mouse: &mut WheelMouseReport,
+        joystick: &mut JoystickReport,
+    ) -> [Keyboard; 26] {
         let mut k: usize = 0;
         let mut nkro_keys = [Keyboard::NoEventIndicated; 26];
         for (i, button) in self.buttons.into_iter().enumerate() {
@@ -239,37 +244,31 @@ impl Report {
                 break;
             }
         }
-        if self.joystick_button.is_some(){
+        if self.joystick_button.is_some() {
             joystick.buttons = 1;
         }
-        if self.mouse_buttons[0].is_some(){
-            if self.mouse_buttons[1].is_some(){
-                if self.mouse_buttons[2].is_some(){
+        if self.mouse_buttons[0].is_some() {
+            if self.mouse_buttons[1].is_some() {
+                if self.mouse_buttons[2].is_some() {
                     mouse.buttons = 7;
-                }
-                else{
+                } else {
                     mouse.buttons = 3;
                 }
-            }
-            else{
+            } else {
                 mouse.buttons = 1;
             }
-        }
-        else if self.mouse_buttons[1].is_some(){
-            if self.mouse_buttons[2].is_some(){
+        } else if self.mouse_buttons[1].is_some() {
+            if self.mouse_buttons[2].is_some() {
                 mouse.buttons = 6;
-            }
-            else{
+            } else {
                 mouse.buttons = 2;
             }
-        }
-        else if self.mouse_buttons[2].is_some(){
+        } else if self.mouse_buttons[2].is_some() {
             mouse.buttons = 4;
         }
         nkro_keys
     }
 }
-
 
 #[derive(Copy, Clone)]
 pub struct Mapping {
@@ -290,20 +289,20 @@ impl Mapping {
             button: Keyboard::NoEventIndicated,
         }
     }
-    fn affects_reports(&self) -> Option<KeyboardAction>{
-        match self.action{
-            KeyboardAction::Layer0Momentary => { Some(KeyboardAction::Layer0Momentary) }
-            KeyboardAction::Layer1Momentary => { Some(KeyboardAction::Layer1Momentary) }
-            KeyboardAction::Layer2Momentary => { Some(KeyboardAction::Layer2Momentary) }
-            KeyboardAction::Layer3Momentary => { Some(KeyboardAction::Layer3Momentary) }
-            KeyboardAction::Layer0Set => { Some(KeyboardAction::Layer0Set) }
-            KeyboardAction::Layer1Set => { Some(KeyboardAction::Layer1Set) }
-            KeyboardAction::Layer2Set => { Some(KeyboardAction::Layer2Set) }
-            KeyboardAction::Layer3Set => { Some(KeyboardAction::Layer3Set) }
-            KeyboardAction::WasdModeOff => { Some(KeyboardAction::WasdModeOff) }
-            KeyboardAction::WasdModeOn => { Some(KeyboardAction::WasdModeOn) }
-            KeyboardAction::WasdModeToggle => { Some(KeyboardAction::WasdModeToggle) }
-            _ => { None }
+    fn affects_reports(&self) -> Option<KeyboardAction> {
+        match self.action {
+            KeyboardAction::Layer0Momentary => Some(KeyboardAction::Layer0Momentary),
+            KeyboardAction::Layer1Momentary => Some(KeyboardAction::Layer1Momentary),
+            KeyboardAction::Layer2Momentary => Some(KeyboardAction::Layer2Momentary),
+            KeyboardAction::Layer3Momentary => Some(KeyboardAction::Layer3Momentary),
+            KeyboardAction::Layer0Set => Some(KeyboardAction::Layer0Set),
+            KeyboardAction::Layer1Set => Some(KeyboardAction::Layer1Set),
+            KeyboardAction::Layer2Set => Some(KeyboardAction::Layer2Set),
+            KeyboardAction::Layer3Set => Some(KeyboardAction::Layer3Set),
+            KeyboardAction::WasdModeOff => Some(KeyboardAction::WasdModeOff),
+            KeyboardAction::WasdModeOn => Some(KeyboardAction::WasdModeOn),
+            KeyboardAction::WasdModeToggle => Some(KeyboardAction::WasdModeToggle),
+            _ => None,
         }
     }
 }
@@ -339,14 +338,14 @@ impl KeymapState {
     }
 }
 
-macro_rules! collapse_mapping{
+macro_rules! collapse_mapping {
     ($mapping_array: expr, $layer: expr) => {{
         let mut layer = $layer as usize;
-        while $mapping_array[layer].action == KeyboardAction::Transparent && layer > 0{
+        while $mapping_array[layer].action == KeyboardAction::Transparent && layer > 0 {
             layer -= 1;
         }
         $mapping_array[layer]
-    }}
+    }};
 }
 
 impl Keymap {
@@ -586,7 +585,7 @@ impl Keymap {
         let mut joy_x_f = joy_x as f32 - self.joy_x_center as f32;
         let mut joy_y_f = joy_y as f32 - self.joy_y_center as f32;
         // perform rotation
-        if self.joy_x_y_rotation != 0{
+        if self.joy_x_y_rotation != 0 {
             let rads = (self.joy_x_y_rotation as f32).to_radians();
             let cosine = libm::cosf(rads);
             let sine = libm::sinf(rads);
@@ -595,7 +594,7 @@ impl Keymap {
         }
         joy_x_f += self.joy_x_center as f32;
         joy_y_f += self.joy_y_center as f32;
-        if !state.wasd_mode{
+        if !state.wasd_mode {
             // convert 10-bit to 8-bit then write x and y to report
             let joy_x_u8 = joy_x_f / 1023.0 * 255.0 - 128.0;
             let joy_y_u8 = joy_y_f / 1023.0 * 255.0 - 128.0;
@@ -608,105 +607,105 @@ impl Keymap {
         let mut keyboard_operations = [KeyboardAction::None; 23];
         let mut keyboard_op_count: usize = 0;
         // keys in order
-        for (i, key) in keys.into_iter().enumerate(){
-            if key{
+        for (i, key) in keys.into_iter().enumerate() {
+            if key {
                 let mapping = collapse_mapping!(self.key_mappings[i], state.current_layer);
-                if let Some(op) = mapping.affects_reports(){
+                if let Some(op) = mapping.affects_reports() {
                     keyboard_operations[keyboard_op_count] = op;
                     keyboard_op_count += 1;
                 }
             }
         }
         // then joystick button
-        if joy_button{
+        if joy_button {
             let mapping = collapse_mapping!(self.joy_button_mappings, state.current_layer);
-            if let Some(op) = mapping.affects_reports(){
+            if let Some(op) = mapping.affects_reports() {
                 keyboard_operations[keyboard_op_count] = op;
                 keyboard_op_count += 1;
             }
         }
         // finally scroll button
-        if scroll_button{
+        if scroll_button {
             let mapping = collapse_mapping!(self.scroll_button_mappings, state.current_layer);
-            if let Some(op) = mapping.affects_reports(){
+            if let Some(op) = mapping.affects_reports() {
                 keyboard_operations[keyboard_op_count] = op;
                 keyboard_op_count += 1;
             }
         }
-        if keyboard_op_count > 0{
+        if keyboard_op_count > 0 {
             //let mut layer_change = false;
             //let mut wasd_change = false;
-            for op in keyboard_operations.iter().take(keyboard_op_count){
-                match op{
+            for op in keyboard_operations.iter().take(keyboard_op_count) {
+                match op {
                     KeyboardAction::Layer0Momentary => {
-                        /* TODO: log if layer_change{ 
+                        /* TODO: log if layer_change{
                         } */
                         state.current_layer = 0;
                         //layer_change = true;
                     }
                     KeyboardAction::Layer1Momentary => {
-                        /* TODO: log if layer_change{ 
+                        /* TODO: log if layer_change{
                         } */
                         state.current_layer = 1;
                         //layer_change = true;
                     }
                     KeyboardAction::Layer2Momentary => {
-                        /* TODO: log if layer_change{ 
+                        /* TODO: log if layer_change{
                         } */
                         state.current_layer = 2;
                         //layer_change = true;
                     }
                     KeyboardAction::Layer3Momentary => {
-                        /* TODO: log if layer_change{ 
+                        /* TODO: log if layer_change{
                         } */
                         state.current_layer = 3;
                         //layer_change = true;
                     }
                     KeyboardAction::Layer0Set => {
-                        /* TODO: log if layer_change{ 
+                        /* TODO: log if layer_change{
                         } */
                         state.current_layer = 0;
                         state.stored_layer = 0;
                         //layer_change = true;
                     }
                     KeyboardAction::Layer1Set => {
-                        /* TODO: log if layer_change{ 
+                        /* TODO: log if layer_change{
                         } */
                         state.current_layer = 1;
                         state.stored_layer = 1;
                         //layer_change = true;
                     }
                     KeyboardAction::Layer2Set => {
-                        /* TODO: log if layer_change{ 
+                        /* TODO: log if layer_change{
                         } */
                         state.current_layer = 2;
                         state.stored_layer = 2;
                         //layer_change = true;
                     }
                     KeyboardAction::Layer3Set => {
-                        /* TODO: log if layer_change{ 
+                        /* TODO: log if layer_change{
                         } */
                         state.current_layer = 3;
                         state.stored_layer = 3;
                         //layer_change = true;
                     }
                     KeyboardAction::WasdModeOff => {
-                         /* TODO: log if wasd_change{ 
+                        /* TODO: log if wasd_change{
                         } */
                         state.wasd_mode = false;
-                        //wasd_change = true;                       
+                        //wasd_change = true;
                     }
                     KeyboardAction::WasdModeOn => {
-                        /* TODO: log if wasd_change{ 
-                       } */
-                       state.wasd_mode = true;
-                       //wasd_change = true;                       
-                   }
-                   KeyboardAction::WasdModeToggle => {
-                        /* TODO: log if wasd_change{ 
+                        /* TODO: log if wasd_change{
+                        } */
+                        state.wasd_mode = true;
+                        //wasd_change = true;
+                    }
+                    KeyboardAction::WasdModeToggle => {
+                        /* TODO: log if wasd_change{
                         } */
                         state.wasd_mode = !state.wasd_mode;
-                        //wasd_change = true;                       
+                        //wasd_change = true;
                     }
                     _ => {
                         unreachable!("Mapping::affects_reports does not function correctly")
@@ -715,42 +714,41 @@ impl Keymap {
             }
         }
         // add WASD keys first
-        if state.wasd_mode{
-            if joy_y_f > (self.joy_y_center as f32 + self.joy_y_deadzone as f32){
+        if state.wasd_mode {
+            if joy_y_f > (self.joy_y_center as f32 + self.joy_y_deadzone as f32) {
                 let mapping = collapse_mapping!(self.wasd_mappings[0], state.current_layer);
                 report.add_mapping(mapping);
-            }
-            else if joy_y_f < (self.joy_y_center as f32 + self.joy_y_deadzone as f32){
+            } else if joy_y_f < (self.joy_y_center as f32 + self.joy_y_deadzone as f32) {
                 let mapping = collapse_mapping!(self.wasd_mappings[1], state.current_layer);
                 report.add_mapping(mapping);
             }
-            if joy_x_f < (self.joy_x_center as f32 - self.joy_x_deadzone as f32){
+            if joy_x_f < (self.joy_x_center as f32 - self.joy_x_deadzone as f32) {
                 let mapping = collapse_mapping!(self.wasd_mappings[2], state.current_layer);
                 report.add_mapping(mapping);
-            }
-            else if joy_y_f > (self.joy_x_center as f32 + self.joy_x_deadzone as f32){
+            } else if joy_y_f > (self.joy_x_center as f32 + self.joy_x_deadzone as f32) {
                 let mapping = collapse_mapping!(self.wasd_mappings[3], state.current_layer);
                 report.add_mapping(mapping);
             }
         }
         // then keys in order
-        for (i, key) in keys.into_iter().enumerate(){
-            if key{
+        for (i, key) in keys.into_iter().enumerate() {
+            if key {
                 let mapping = collapse_mapping!(self.key_mappings[i], state.current_layer);
                 report.add_mapping(mapping);
             }
         }
         // then joystick button
-        if joy_button{
+        if joy_button {
             let mapping = collapse_mapping!(self.joy_button_mappings, state.current_layer);
             report.add_mapping(mapping);
         }
         // finally scroll button
-        if scroll_button{
+        if scroll_button {
             let mapping = collapse_mapping!(self.scroll_button_mappings, state.current_layer);
             report.add_mapping(mapping);
         }
 
+        io.leds.show();
         let keys = report.finalize(&mut mouse_report, &mut joystick_report);
         (keys, mouse_report, joystick_report)
     }

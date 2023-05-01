@@ -2,6 +2,7 @@
 #![no_main]
 
 mod keymap;
+mod ws2812;
 
 use bsp::{
     board,
@@ -151,7 +152,8 @@ fn main() -> ! {
     let mut keymap_state = KeymapState::default();
 
     // Configure IO for keymap use
-    let mut keymap_io = KeymapIOPoints::new(&mut gpio1, &mut gpio2, &mut gpio3, &mut gpio4, pins);
+    let mut keymap_io =
+        KeymapIOPoints::new(&mut gpio1, &mut gpio2, &mut gpio3, &mut gpio4, pins, pit.1);
 
     // Polling
     let mut delay = bsp::hal::timer::Blocking::<_, { board::PERCLK_FREQUENCY }>::from_pit(pit.0);
@@ -214,6 +216,6 @@ fn main() -> ! {
             }
         }
 
-        delay.block_ms(50);
+        delay.block_ms(10);
     }
 }
