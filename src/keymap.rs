@@ -584,7 +584,7 @@ impl Report {
                 self.buttons[self.button_count] = Some(mapping.button);
                 self.button_count += 1;
             } else {
-                // TODO: log
+                log::warn!("more than 26 keypresses registered in one frame");
             }
         }
         let consumer = mapping.consumer_button.get_usb_code();
@@ -593,7 +593,7 @@ impl Report {
                 self.consumer_codes[self.consumer_count] = consumer;
                 self.consumer_count += 1;
             } else {
-                // TODO: log
+                log::warn!("more than 4 consumer keypresses registered in one frame");
             }
         }
         match mapping.action {
@@ -1024,79 +1024,90 @@ impl Keymap {
             }
         }
         if keyboard_op_count > 0 {
-            //let mut layer_change = false;
-            //let mut wasd_change = false;
+            let mut layer_change = false;
+            let mut wasd_change = false;
             for op in keyboard_operations.iter().take(keyboard_op_count) {
                 match op {
                     KeyboardAction::Layer0Momentary => {
-                        /* TODO: log if layer_change{
-                        } */
+                        if layer_change {
+                            log::warn!("more than one layer operation detected in one frame");
+                        }
                         state.current_layer = 0;
-                        //layer_change = true;
+                        layer_change = true;
                     }
                     KeyboardAction::Layer1Momentary => {
-                        /* TODO: log if layer_change{
-                        } */
+                        if layer_change {
+                            log::warn!("more than one layer operation detected in one frame");
+                        }
                         state.current_layer = 1;
-                        //layer_change = true;
+                        layer_change = true;
                     }
                     KeyboardAction::Layer2Momentary => {
-                        /* TODO: log if layer_change{
-                        } */
+                        if layer_change {
+                            log::warn!("more than one layer operation detected in one frame");
+                        }
                         state.current_layer = 2;
-                        //layer_change = true;
+                        layer_change = true;
                     }
                     KeyboardAction::Layer3Momentary => {
-                        /* TODO: log if layer_change{
-                        } */
+                        if layer_change {
+                            log::warn!("more than one layer operation detected in one frame");
+                        }
                         state.current_layer = 3;
-                        //layer_change = true;
+                        layer_change = true;
                     }
                     KeyboardAction::Layer0Set => {
-                        /* TODO: log if layer_change{
-                        } */
+                        if layer_change {
+                            log::warn!("more than one layer operation detected in one frame");
+                        }
                         state.current_layer = 0;
                         state.stored_layer = 0;
-                        //layer_change = true;
+                        layer_change = true;
                     }
                     KeyboardAction::Layer1Set => {
-                        /* TODO: log if layer_change{
-                        } */
+                        if layer_change {
+                            log::warn!("more than one layer operation detected in one frame");
+                        }
                         state.current_layer = 1;
                         state.stored_layer = 1;
-                        //layer_change = true;
+                        layer_change = true;
                     }
                     KeyboardAction::Layer2Set => {
-                        /* TODO: log if layer_change{
-                        } */
+                        if layer_change {
+                            log::warn!("more than one layer operation detected in one frame");
+                        }
                         state.current_layer = 2;
                         state.stored_layer = 2;
-                        //layer_change = true;
+                        layer_change = true;
                     }
                     KeyboardAction::Layer3Set => {
-                        /* TODO: log if layer_change{
-                        } */
+                        if layer_change {
+                            log::warn!("more than one layer operation detected in one frame");
+                        }
                         state.current_layer = 3;
                         state.stored_layer = 3;
-                        //layer_change = true;
+                        layer_change = true;
                     }
                     KeyboardAction::WasdModeOff => {
-                        /* TODO: log if wasd_change{
-                        } */
+                        if wasd_change {
+                            log::warn!("more than one WASD mode operation detected in one frame");
+                        }
                         state.wasd_mode = false;
-                        //wasd_change = true;
+                        wasd_change = true;
                     }
                     KeyboardAction::WasdModeOn => {
-                        /* TODO: log if wasd_change{
-                        } */
+                        if wasd_change {
+                            log::warn!("more than one WASD mode operation detected in one frame");
+                        }
                         state.wasd_mode = true;
-                        //wasd_change = true;
+                        wasd_change = true;
                     }
                     KeyboardAction::WasdModeToggle => {
-                        /* TODO: log if wasd_change{
-                        } */
+                        if wasd_change {
+                            log::warn!("more than one WASD mode operation detected in one frame");
+                        }
                         state.wasd_mode = !state.wasd_mode;
-                        //wasd_change = true;
+                        wasd_change = true;
                     }
                     _ => {
                         unreachable!("Mapping::affects_reports does not function correctly")

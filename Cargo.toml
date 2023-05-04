@@ -9,15 +9,17 @@ cortex-m = "0.7"
 embedded-hal = "0.2"
 imxrt-usbd = "0.2.1"
 paste = "1.0"
-teensy4-panic = "0.2"
+teensy4-panic = { version = "0.2", default-features = false}
 teensy4-pins = "0.3.1"
 usb-device = "0.2.9"
-usbd-human-interface-device = "0.4.1"
+usbd-human-interface-device = { version = "0.4.1", features = ["log"] }
 libm = "0.2.6"
 fugit = "0.3.6"
+log = "0.4"
 
 [dependencies.teensy4-bsp]
 version = "0.4"
+default-features = false
 features = [
     # Use the BSP's runtime. This lets you write your
     # `main()` function.

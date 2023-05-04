@@ -64,6 +64,12 @@ static PIN_CONFIG: [Option<iomuxc::PullKeeper>; 31] = [
 static EP_MEMORY: imxrt_usbd::EndpointMemory<4096> = imxrt_usbd::EndpointMemory::new();
 static EP_STATE: imxrt_usbd::EndpointState = imxrt_usbd::EndpointState::max_endpoints();
 
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    log::error!("{:?}", info);
+    teensy4_panic::sos();
+}
+
 macro_rules! configure_pin {
     ($pin_index: tt, $pins: ident) => {
         ::paste::paste! {
@@ -134,8 +140,12 @@ fn main() -> ! {
     adc1.set_resolution(ResolutionBits::Res10);
     adc1.calibrate();
 
+    // Configure IO for keymap use
+    let mut keymap_io =
+        KeymapIOPoints::new(&mut gpio1, &mut gpio2, &mut gpio3, &mut gpio4, pins, pit.1);
+
     // set up USB HID device
-    let bus_adapter = BusAdapter::new(usb, &EP_MEMORY, &EP_STATE);
+    let bus_adapter = BusAdapter::with_speed(usb, &EP_MEMORY, &EP_STATE, imxrt_usbd::Speed::High);
     let usb_alloc = UsbBusAllocator::new(bus_adapter);
     let mut keypad_class = UsbHidClassBuilder::new()
         .add_device(NKROBootKeyboardConfig::default())
@@ -143,19 +153,17 @@ fn main() -> ! {
         .add_device(WheelMouseConfig::default())
         .add_device(ConsumerControlConfig::default())
         .build(&usb_alloc);
-    let mut keypad_dev = UsbDeviceBuilder::new(&usb_alloc, UsbVidPid(0x1209, 0x9037)) // TODO: fork pid.codes accordingly; finish stuff first
+    let mut keypad_dev = UsbDeviceBuilder::new(&usb_alloc, UsbVidPid(0x1209, 0x0001)) // TODO: fork pid.codes accordingly; finish stuff first
         .manufacturer("kitknacks")
         .product("padtarust keypad")
         .serial_number("00000")
+        .max_power(500)
         .build();
+    keypad_dev.bus().configure();
 
     // set up keymap TODO: load from flash (teensy4-fcb?)
     let mut keymap = Keymap::default();
     let mut keymap_state = KeymapState::default();
-
-    // Configure IO for keymap use
-    let mut keymap_io =
-        KeymapIOPoints::new(&mut gpio1, &mut gpio2, &mut gpio3, &mut gpio4, pins, pit.1);
 
     // Polling
     let mut delay = bsp::hal::timer::Blocking::<_, { board::PERCLK_FREQUENCY }>::from_pit(pit.0);
@@ -207,6 +215,7 @@ fn main() -> ! {
                 }
             }
         }
+
         if let Err(e) = keypad_class.tick() {
             match e {
                 UsbHidError::WouldBlock => {}
