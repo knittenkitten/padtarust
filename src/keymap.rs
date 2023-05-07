@@ -810,7 +810,7 @@ impl Report {
             joy_buttons: 0,
             x: 0,
             y: 0,
-            modifier: 0,
+            modifier: 0, // TODO: modifier support
             keycodes: [0; 26],
             consumer_keycode: 0,
         };

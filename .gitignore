@@ -3,3 +3,4 @@
 /out
 Cargo.lock
 padtarust.hex
+flash.sh
