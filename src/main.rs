@@ -275,6 +275,11 @@ fn main() -> ! {
     loop {
         if report_written {
             report = keymap.update(&mut adc1, &mut keymap_io, &mut keymap_state);
+            report_written = false;
+            mouse_written = false;
+            joystick_written = false;
+            keyboard_written = false;
+            consumer_written = false;
         }
 
         if !mouse_written {
