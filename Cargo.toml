@@ -12,10 +12,11 @@ paste = "1.0"
 teensy4-panic = { version = "0.2", default-features = false}
 teensy4-pins = "0.3.1"
 usb-device = "0.2.9"
-usbd-human-interface-device = { version = "0.4.1", features = ["log"] }
 libm = "0.2.6"
 fugit = "0.3.6"
 log = "0.4"
+usbd-hid = "0.6.1"
+usbd-serial = "0.1.1"
 
 [dependencies.teensy4-bsp]
 version = "0.4"

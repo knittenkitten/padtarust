@@ -16,17 +16,60 @@ use usb_device::{
     prelude::{UsbDeviceBuilder, UsbVidPid},
     UsbError,
 };
-use usbd_human_interface_device::{
-    device::{
-        consumer::{ConsumerControl, ConsumerControlConfig},
-        joystick::{Joystick, JoystickConfig},
-        keyboard::{NKROBootKeyboard, NKROBootKeyboardConfig},
-        mouse::{WheelMouse, WheelMouseConfig},
-    },
-    prelude::*,
-};
+use usbd_hid::descriptor::generator_prelude::*;
+use usbd_hid::hid_class::HIDClass;
+//use usbd_serial::SerialPort;
 
 use crate::keymap::{Keymap, KeymapIOPoints, KeymapState};
+
+#[gen_hid_descriptor(
+    (collection = APPLICATION, usage_page = GENERIC_DESKTOP, usage = MOUSE) = {
+        (collection = PHYSICAL, usage = POINTER) = {
+            (usage = WHEEL,) = {
+                #[item_settings data,variable,relative] wheel=input;
+            };
+            (usage_page = BUTTON, usage_min = BUTTON_1, usage_max = BUTTON_8) = {
+                #[packed_bits 8] #[item_settings data,variable,absolute] mouse_buttons=input;
+            };
+        };
+    },
+    (collection = APPLICATION, usage_page = GENERIC_DESKTOP, usage = JOYSTICK) = {
+        (collection = PHYSICAL, usage = JOYSTICK) = {
+            (usage = X,) = {
+                #[item_settings data,variable,absolute] x=input;
+            };
+            (usage = Y,) = {
+                #[item_settings data,variable,absolute] y=input;
+            };
+            (usage_page = BUTTON, usage_min = BUTTON_1, usage_max = BUTTON_8) = {
+                #[packed_bits 8] #[item_settings data,variable,absolute] joy_buttons=input;
+            };
+        };
+    },
+    (collection = APPLICATION, usage_page = GENERIC_DESKTOP, usage = KEYPAD) = {
+        (usage_page = KEYBOARD, usage_min = 0x00, usage_max = 0xDD) = {
+            #[item_settings data,array,absolute] keycodes=input;
+        };
+        (usage_page = KEYBOARD, usage_min = 0xE0, usage_max = 0xE7) = {
+            #[packed_bits 8] #[item_settings data,variable,absolute] modifier=input;
+        }
+    },
+    (collection = APPLICATION, usage_page = CONSUMER, usage = CONSUMER_CONTROL) = {
+        (usage_page = CONSUMER, usage_min = 0x00, usage_max = 0x514) = {
+            #[item_settings data,array,absolute,not_null] consumer_keycode=input;
+        }
+    }
+)]
+struct KeypadReport{
+    pub mouse_buttons: u8,
+    pub wheel: i8,
+    pub joy_buttons: u8,
+    pub x: u16,
+    pub y: u16,
+    pub modifier: u8,
+    pub keycodes: [u8; 26],
+    pub consumer_keycode: u16
+}
 
 static PIN_CONFIG: [Option<iomuxc::PullKeeper>; 31] = [
     Some(iomuxc::PullKeeper::Pulldown100k), // 0
@@ -147,18 +190,25 @@ fn main() -> ! {
     // set up USB HID device
     let bus_adapter = BusAdapter::with_speed(usb, &EP_MEMORY, &EP_STATE, imxrt_usbd::Speed::High);
     let usb_alloc = UsbBusAllocator::new(bus_adapter);
-    let mut keypad_class = UsbHidClassBuilder::new()
-        .add_device(NKROBootKeyboardConfig::default())
-        .add_device(JoystickConfig::default())
-        .add_device(WheelMouseConfig::default())
-        .add_device(ConsumerControlConfig::default())
-        .build(&usb_alloc);
+    let mut keypad_class = HIDClass::new(&usb_alloc, KeypadReport::desc(), 10);
+    //let mut serial_port = SerialPort::new(&usb_alloc);
     let mut keypad_dev = UsbDeviceBuilder::new(&usb_alloc, UsbVidPid(0x1209, 0x0001)) // TODO: fork pid.codes accordingly; finish stuff first
         .manufacturer("kitknacks")
         .product("padtarust keypad")
+        .device_class(0x03)
         .serial_number("00000")
         .max_power(500)
+        .max_packet_size_0(64)
         .build();
+    loop {
+        if !keypad_dev.poll(&mut [&mut keypad_class]){//, &mut serial_port]) {
+            continue;
+        }
+        let state = keypad_dev.state();
+        if state == usb_device::device::UsbDeviceState::Configured {
+            break;
+        }
+    }
     keypad_dev.bus().configure();
 
     // set up keymap TODO: load from flash (teensy4-fcb?)
@@ -169,74 +219,17 @@ fn main() -> ! {
     let mut delay = bsp::hal::timer::Blocking::<_, { board::PERCLK_FREQUENCY }>::from_pit(pit.0);
 
     loop {
-        let reports = keymap.update(&mut adc1, &mut keymap_io, &mut keymap_state);
-        {
-            let keyboard = keypad_class.device::<NKROBootKeyboard<'_, _>, _>();
-            if let Err(e) = keyboard.write_report(reports.0) {
-                match e {
-                    UsbHidError::WouldBlock => {}
-                    UsbHidError::Duplicate => {}
-                    _ => {
-                        panic!("Failed to write keyboard report: {:?}", e);
-                    }
-                }
-            }
-        }
-        {
-            let mouse = keypad_class.device::<WheelMouse<'_, _>, _>();
-            if let Err(e) = mouse.write_report(&reports.1) {
-                match e {
-                    UsbHidError::WouldBlock => {}
-                    _ => {
-                        panic!("Failed to write mouse report: {:?}", e);
-                    }
-                }
-            }
-        }
-        {
-            let joystick = keypad_class.device::<Joystick<'_, _>, _>();
-            if let Err(e) = joystick.write_report(&reports.2) {
-                match e {
-                    UsbHidError::WouldBlock => {}
-                    _ => {
-                        panic!("Failed to write joystick report: {:?}", e);
-                    }
-                }
-            }
-        }
-        {
-            let consumer = keypad_class.device::<ConsumerControl<'_, _>, _>();
-            if let Err(e) = consumer.write_report(&reports.3) {
-                match e {
-                    UsbError::WouldBlock => {}
-                    _ => {
-                        panic!("Failed to write consumer report: {:?}", e);
-                    }
-                }
-            }
-        }
-
-        if let Err(e) = keypad_class.tick() {
-            match e {
-                UsbHidError::WouldBlock => {}
+        let report = keymap.update(&mut adc1, &mut keymap_io, &mut keymap_state);
+        if let Err(e) = keypad_class.push_input(&report){
+            match e{
+                UsbError::WouldBlock => {}
                 _ => {
-                    panic!("Failed to tick USB device: {:?}", e);
+                    panic!("Failed to write keyboard report: {:?}", e);
                 }
             }
         }
 
-        if keypad_dev.poll(&mut [&mut keypad_class]) {
-            let keyboard = keypad_class.device::<NKROBootKeyboard<'_, _>, _>();
-            // TODO (potentially): add support for OS keyboard LEDs
-            if let Err(e) = keyboard.read_report() {
-                match e {
-                    UsbError::WouldBlock => {}
-                    _ => {
-                        panic!("Failed to read keyboard report: {:?}", e);
-                    }
-                }
-            }
-        }
+        let _ = keypad_dev.poll(&mut [&mut keypad_class]); //, &mut serial_port]);
 
         delay.block_ms(10);
     }
