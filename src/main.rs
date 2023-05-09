@@ -2,6 +2,7 @@
 #![no_main]
 
 mod keymap;
+mod keymap_common;
 mod ws2812;
 
 use bsp::{
@@ -92,7 +93,7 @@ struct ConsumerReport {
     pub consumer_keycode: u16,
 }
 
-struct KeypadReport {
+pub struct KeypadReport {
     pub mouse_buttons: u8,
     pub wheel: i8,
     pub joy_buttons: u8,
@@ -266,7 +267,7 @@ fn main() -> ! {
     keypad_dev.bus().configure();
 
     let mut report_written = false;
-    let mut report = keymap.update(&mut adc1, &mut keymap_io, &mut keymap_state);
+    let mut report = keymap_state.update(&mut adc1, &mut keymap_io, &mut keymap);
     let mut mouse_written = false;
     let mut joystick_written = false;
     let mut keyboard_written = false;
@@ -274,7 +275,7 @@ fn main() -> ! {
 
     loop {
         if report_written {
-            report = keymap.update(&mut adc1, &mut keymap_io, &mut keymap_state);
+            report = keymap_state.update(&mut adc1, &mut keymap_io, &mut keymap);
             report_written = false;
             mouse_written = false;
             joystick_written = false;
